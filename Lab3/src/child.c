@@ -18,9 +18,15 @@ typedef struct {
     int shutdown;
 } shared_data_t;
 
+void write_str(const char *str) {
+    write(STDOUT_FILENO, str, strlen(str));
+}
+
 int main(int argc, char **argv) {
     if (argc != 2) {
-        printf("Usage: %s <unique_id>\n", argv[0]);
+        write_str("Usage: ");
+        write_str(argv[0]);
+        write_str(" <unique_id>\n");
         return 1;
     }
 
@@ -30,23 +36,25 @@ int main(int argc, char **argv) {
 
     int shm_fd = shm_open(shm_name, O_RDWR, 0666);
     if (shm_fd == -1) {
-        perror("shm_open failed");
+        write_str("shm_open failed\n");
         return 1;
     }
 
     shared_data_t *shared_data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shared_data == MAP_FAILED) {
-        perror("mmap failed");
+        write_str("mmap failed\n");
         return 1;
     }
 
     sem_t *semaphore = sem_open(sem_name, 0);
     if (semaphore == SEM_FAILED) {
-        perror("sem_open failed");
+        write_str("sem_open failed\n");
         return 1;
     }
 
-    printf("Client started with ID: %s\n", argv[1]);
+    char buffer[512];
+    snprintf(buffer, sizeof(buffer), "Client started with ID: %s\n", argv[1]);
+    write_str(buffer);
 
     char filename[256];
     sem_wait(semaphore);
@@ -55,11 +63,14 @@ int main(int argc, char **argv) {
 
     FILE *file = fopen(filename, "w");
     if (file == NULL) {
-        printf("Error: failed to open file %s\n", filename);
+        write_str("Error: failed to open file ");
+        write_str(filename);
+        write_str("\n");
         return 1;
     }
 
-    printf("Output file: %s\n", filename);
+    snprintf(buffer, sizeof(buffer), "Output file: %s\n", filename);
+    write_str(buffer);
 
     while (1) {
         sem_wait(semaphore);
@@ -143,7 +154,7 @@ int main(int argc, char **argv) {
     }
 
     fclose(file);
-    printf("Client finished successfully.\n");
+    write_str("Client finished successfully.\n");
 
     munmap(shared_data, SHM_SIZE);
     close(shm_fd);
