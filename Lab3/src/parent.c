@@ -19,9 +19,15 @@ typedef struct {
     int shutdown;
 } shared_data_t;
 
+void write_str(const char *str) {
+    write(STDOUT_FILENO, str, strlen(str));
+}
+
 int main(int argc, char **argv) {
     if (argc != 2) {
-        printf("Usage: %s <unique_id>\n", argv[0]);
+        write_str("Usage: ");
+        write_str(argv[0]);
+        write_str(" <unique_id>\n");
         return 1;
     }
 
@@ -31,18 +37,18 @@ int main(int argc, char **argv) {
 
     int shm_fd = shm_open(shm_name, O_CREAT | O_RDWR, 0666);
     if (shm_fd == -1) {
-        perror("shm_open failed");
+        write_str("shm_open failed\n");
         return 1;
     }
 
     if (ftruncate(shm_fd, SHM_SIZE) == -1) {
-        perror("ftruncate failed");
+        write_str("ftruncate failed\n");
         return 1;
     }
 
     shared_data_t *shared_data = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shared_data == MAP_FAILED) {
-        perror("mmap failed");
+        write_str("mmap failed\n");
         return 1;
     }
 
@@ -50,19 +56,23 @@ int main(int argc, char **argv) {
 
     sem_t *semaphore = sem_open(sem_name, O_CREAT, 0666, 1);
     if (semaphore == SEM_FAILED) {
-        perror("sem_open failed");
+        write_str("sem_open failed\n");
         return 1;
     }
 
-    printf("Server started with ID: %s\n", argv[1]);
-    printf("Shared memory: %s\n", shm_name);
-    printf("Semaphore: %s\n", sem_name);
-    printf("Waiting for client...\n");
-
-    printf("Enter filename: ");
+    char buffer[512];
+    snprintf(buffer, sizeof(buffer), "Server started with ID: %s\n", argv[1]);
+    write_str(buffer);
+    snprintf(buffer, sizeof(buffer), "Shared memory: %s\n", shm_name);
+    write_str(buffer);
+    snprintf(buffer, sizeof(buffer), "Semaphore: %s\n", sem_name);
+    write_str(buffer);
+    write_str("Waiting for client...\n");
+    write_str("Enter filename: ");
+    
     char filename[256];
     if (fgets(filename, sizeof(filename), stdin) == NULL) {
-        printf("Error reading filename\n");
+        write_str("Error reading filename\n");
         return 1;
     }
     filename[strcspn(filename, "\n")] = '\0';
@@ -71,8 +81,8 @@ int main(int argc, char **argv) {
     strcpy(shared_data->filename, filename);
     sem_post(semaphore);
 
-    printf("Enter numbers separated by spaces (e.g., '12 3 4'):\n");
-    printf("Press Enter on empty line to exit\n");
+    write_str("Enter numbers separated by spaces (e.g., '12 3 4'):\n");
+    write_str("Press Enter on empty line to exit\n");
 
     char input[1024];
     while (fgets(input, sizeof(input), stdin)) {
@@ -95,7 +105,7 @@ int main(int argc, char **argv) {
             if (!shared_data->has_data) {
                 processed = 1;
                 if (shared_data->division_by_zero) {
-                    printf("Error: Division by zero! Exiting...\n");
+                    write_str("Error: Division by zero! Exiting...\n");
                     sem_post(semaphore);
 
                     munmap(shared_data, SHM_SIZE);
@@ -112,7 +122,8 @@ int main(int argc, char **argv) {
 
         sem_wait(semaphore);
         if (strlen(shared_data->result) > 0) {
-            printf("Result: %s", shared_data->result);
+            write_str("Result: ");
+            write_str(shared_data->result);
         }
         sem_post(semaphore);
     }
@@ -121,7 +132,7 @@ int main(int argc, char **argv) {
     shared_data->shutdown = 1;
     sem_post(semaphore);
 
-    printf("Program finished successfully.\n");
+    write_str("Program finished successfully.\n");
 
     munmap(shared_data, SHM_SIZE);
     close(shm_fd);
